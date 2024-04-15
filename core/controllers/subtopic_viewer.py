@@ -1,0 +1,81 @@
+# Copyright 2019 The Oppia Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS-IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Controllers for the subtopic viewer page."""
+
+from __future__ import absolute_import  # pylint: disable=import-only-modules
+from __future__ import unicode_literals  # pylint: disable=import-only-modules
+
+from core.controllers import acl_decorators
+from core.controllers import base
+from core.domain import subtopic_page_services
+from core.domain import topic_fetchers
+import feconf
+
+
+class SubtopicViewerPage(base.BaseHandler):
+    """Renders the subtopic viewer page."""
+
+    @acl_decorators.can_access_subtopic_viewer_page
+    def get(self, *args):
+        """Handles GET requests."""
+
+        self.render_template('subtopic-viewer-page.mainpage.html')
+
+
+class SubtopicPageDataHandler(base.BaseHandler):
+    """Manages the data that needs to be displayed to a learner on the
+    subtopic page.
+    """
+
+    GET_HANDLER_ERROR_RETURN_TYPE = feconf.HANDLER_TYPE_JSON
+
+    @acl_decorators.can_access_subtopic_viewer_page
+    def get(self, topic_name, subtopic_id):
+        """Handles GET requests.
+
+        Args:
+            topic_name: str. The name of the topic that the subtopic is present
+                in.
+            subtopic_id: str. The id of the subtopic, which is an integer in
+                string form.
+        """
+
+        subtopic_id = int(subtopic_id)
+        topic = topic_fetchers.get_topic_by_name(topic_name)
+        next_subtopic_dict = None
+        for index, subtopic in enumerate(topic.subtopics):
+            if subtopic.id == subtopic_id:
+                subtopic_title = subtopic.title
+                if index != len(topic.subtopics) - 1:
+                    next_subtopic_dict = topic.subtopics[index + 1].to_dict()
+                # Checking greater than 1 here, since otherwise the only
+                # subtopic page of the topic would always link to itself at the
+                # bottom of the subtopic page which isn't expected.
+                elif len(topic.subtopics) > 1:
+                    next_subtopic_dict = topic.subtopics[0].to_dict()
+                break
+        subtopic_page_contents = (
+            subtopic_page_services.get_subtopic_page_contents_by_id(
+                topic.id, subtopic_id))
+        subtopic_page_contents_dict = subtopic_page_contents.to_dict()
+
+        self.values.update({
+            'topic_id': topic.id,
+            'topic_name': topic.name,
+            'page_contents': subtopic_page_contents_dict,
+            'subtopic_title': subtopic_title,
+            'next_subtopic_dict': next_subtopic_dict
+        })
+        self.render_json(self.values)
